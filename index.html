@@ -1,0 +1,141 @@
+from flask import Flask, request, jsonify, render_template_string
+from flask_cors import CORS
+
+app = Flask(__name__)
+CORS(app)
+
+html = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>All in One Utility Hub</title>
+  <style>
+    body { font-family: Arial; background: #f4f6f8; margin: 0; padding: 1rem; }
+    .container { max-width: 800px; margin: auto; background: white; padding: 1.5rem; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1);}
+    h1 { text-align: center; color: #2c3e50; }
+    .tool-section { margin-bottom: 2rem; }
+    input, button, select { padding: 0.6rem; margin: 0.5rem 0; width: 100%; font-size: 1rem; border-radius: 5px; border: 1px solid #ccc; }
+    button { background: #3498db; color: white; border: none; cursor: pointer; }
+    button:hover { background: #2980b9; }
+    .output { margin-top: 1rem; background: #eef; padding: 1rem; border-radius: 5px; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🧰 All in One Utility Hub</h1>
+
+    <div class="tool-section">
+      <h3>🔢 Number Converter (Decimal ↔ Binary)</h3>
+      <input type="text" id="numberInput" placeholder="Enter a number" />
+      <select id="conversionType">
+        <option value="toBinary">Decimal ➡ Binary</option>
+        <option value="toDecimal">Binary ➡ Decimal</option>
+      </select>
+      <button onclick="convertNumber()">Convert</button>
+      <div class="output" id="numberOutput"></div>
+    </div>
+
+    <div class="tool-section">
+      <h3>✂️ Text Summarizer</h3>
+      <textarea id="textInput" placeholder="Paste long text..." rows="5" style="width:100%"></textarea>
+      <button onclick="summarizeText()">Summarize</button>
+      <div class="output" id="textOutput"></div>
+    </div>
+
+    <div class="tool-section">
+      <h3>📊 Currency Converter</h3>
+      <input type="number" id="amount" placeholder="Enter amount in USD" />
+      <select id="currency">
+        <option value="INR">INR</option>
+        <option value="EUR">EUR</option>
+        <option value="JPY">JPY</option>
+      </select>
+      <button onclick="convertCurrency()">Convert</button>
+      <div class="output" id="currencyOutput"></div>
+    </div>
+
+  </div>
+
+  <script>
+    async function convertNumber() {
+      const number = document.getElementById('numberInput').value;
+      const type = document.getElementById('conversionType').value;
+      const res = await fetch('/api/convert-number', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ number, type })
+      });
+      const data = await res.json();
+      document.getElementById('numberOutput').innerText = data.result || data.error;
+    }
+
+    async function summarizeText() {
+      const text = document.getElementById('textInput').value;
+      const res = await fetch('/api/summarize', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ text })
+      });
+      const data = await res.json();
+      document.getElementById('textOutput').innerText = data.summary || data.error;
+    }
+
+    async function convertCurrency() {
+      const amount = parseFloat(document.getElementById('amount').value);
+      const currency = document.getElementById('currency').value;
+      const res = await fetch('/api/currency', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ amount, currency })
+      });
+      const data = await res.json();
+      document.getElementById('currencyOutput').innerText = data.converted || data.error;
+    }
+  </script>
+</body>
+</html>
+"""
+
+@app.route("/")
+def index():
+    return render_template_string(html)
+
+@app.route("/api/convert-number", methods=["POST"])
+def convert_number():
+    data = request.get_json()
+    number = data.get("number")
+    conv_type = data.get("type")
+    try:
+        if conv_type == "toBinary":
+            result = bin(int(number))[2:]
+        elif conv_type == "toDecimal":
+            result = str(int(number, 2))
+        else:
+            return jsonify({"error": "Invalid conversion type"}), 400
+        return jsonify({"result": result})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+@app.route("/api/summarize", methods=["POST"])
+def summarize():
+    data = request.get_json()
+    text = data.get("text", "")
+    summary = text[:200] + "..." if len(text) > 200 else text
+    return jsonify({"summary": summary})
+
+@app.route("/api/currency", methods=["POST"])
+def currency():
+    data = request.get_json()
+    amount = data.get("amount", 0)
+    currency = data.get("currency", "INR")
+    rates = {"INR": 83.1, "EUR": 0.91, "JPY": 144.7}
+    try:
+        converted = float(amount) * rates.get(currency, 1)
+        return jsonify({"converted": f"{amount} USD = {converted:.2f} {currency}"})
+    except:
+        return jsonify({"error": "Invalid amount"}), 400
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8080)
